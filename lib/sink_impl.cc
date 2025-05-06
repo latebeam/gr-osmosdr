@@ -51,6 +51,9 @@
 #ifdef ENABLE_XTRX
 #include "xtrx_sink_c.h"
 #endif
+#ifdef ENABLE_PCIESDR
+#include "pciesdr_sink_c.h"
+#endif
 #ifdef ENABLE_FILE
 #include "file_sink_c.h"
 #endif
@@ -104,6 +107,8 @@ sink_impl::sink_impl( const std::string &args )
 #endif
 #ifdef ENABLE_XTRX
   dev_types.push_back("xtrx");
+#ifdef ENABLE_PCIESDR
+  dev_types.push_back("pciesdr");
 #endif
 #ifdef ENABLE_FILE
   dev_types.push_back("file");
@@ -156,6 +161,9 @@ sink_impl::sink_impl( const std::string &args )
 #ifdef ENABLE_XTRX
     for (std::string dev : xtrx_sink_c::get_devices())
       dev_list.push_back( dev );
+#endif
+#ifdef ENABLE_PCIESDR
+    BOOST_FOREACH( std::string dev, pciesdr_sink_c::get_devices() )
 #endif
 #ifdef ENABLE_FILE
     for (std::string dev : file_sink_c::get_devices())
@@ -222,6 +230,12 @@ sink_impl::sink_impl( const std::string &args )
 #ifdef ENABLE_XTRX
     if ( dict.count("xtrx") ) {
       xtrx_sink_c_sptr sink = make_xtrx_sink_c( arg );
+      block = sink; iface = sink.get();
+    }
+#endif
+#ifdef ENABLE_PCIESDR
+    if ( dict.count("pciesdr") ) {
+      pciesdr_sink_c_sptr sink = make_pciesdr_sink_c( arg );
       block = sink; iface = sink.get();
     }
 #endif

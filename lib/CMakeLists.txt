@@ -272,6 +272,14 @@ if(ENABLE_XTRX)
 endif(ENABLE_XTRX)
 
 ########################################################################
+# Setup PCIeSDR component
+########################################################################
+GR_REGISTER_COMPONENT("PCIeSDR" ENABLE_PCIESDR LIBPCIESDR_FOUND)
+if(ENABLE_PCIESDR)
+    GR_INCLUDE_SUBDIRECTORY(pciesdr)
+endif(ENABLE_PCIESDR)
+
+########################################################################
 # Setup configuration file
 ########################################################################
 add_definitions(-DHAVE_CONFIG_H=1)

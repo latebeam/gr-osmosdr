@@ -23,6 +23,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(gr-osmosdr CXX C)
 include(GNUInstallDirs)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 enable_testing()
 
 #policy setup
@@ -177,6 +178,7 @@ find_package(SoapySDR NO_MODULE)
 find_package(LibFreeSRP)
 find_package(LibXTRX)
 find_package(Doxygen)
+find_package(LibPCIeSDR)
 
     # Python
     ##########
