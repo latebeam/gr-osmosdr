@@ -34,7 +34,7 @@
 
 #include <boost/assign.hpp>
 #include <boost/format.hpp>
-#include <boost/detail/endian.hpp>
+#include <boost/predef/other/endian.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread/thread.hpp>
 
@@ -43,6 +43,8 @@
 #include "pciesdr_sink_c.h"
 
 #include "arg_helpers.h"
+
+#define SDR_MAX_CHANNELS  4096
 
 using namespace boost::assign;
 
@@ -133,9 +135,9 @@ pciesdr_sink_c::pciesdr_sink_c (const std::string &args)
   }
   
   // prefil startup parameters
-  msdr_set_default_start_params(_dev, &StartParams);
+  msdr_set_default_start_params(_dev, &StartParams, 1, 1, 1, 1);
 
-  StartParams.interface_type = SDR_INTERFACE_RF; /* RF interface */
+  //StartParams.interface_type = SDR_INTERFACE_RF; /* RF interface */
   StartParams.sync_source = SDR_SYNC_NONE; /* no time synchronisation */
   StartParams.clock_source = SDR_CLOCK_INTERNAL; /* internal clock, using PPS to correct it */
 
@@ -228,7 +230,7 @@ bool pciesdr_sink_c::start()
   if (! _dev)
     return false;
 
-  ret = msdr_start(_dev, &StartParams);
+  ret = msdr_start(_dev);
   if (ret) {
     std::cerr << "Failed to start TX streaming" << std::endl;
     return false;
@@ -285,10 +287,11 @@ int pciesdr_sink_c::work( int noutput_items,
   int noutput_items_tmp = noutput_items;
   int64_t hw_time_tmp = 0;
   sample_t *tx_samples_by_chan[SDR_MAX_CHANNELS];
+  MultiSDRWriteMetadata md;
 
   if (!timestamp_tx) {
     // get current tx timestamp from SDR
-    rc = msdr_write(_dev, 0, (const void**)NULL, 0, 0, &hw_time_tmp);
+    rc = msdr_write(_dev, 0, (const void**)NULL, 0, 0, &md);
     if (rc < 0) {
       std::cerr << "Failed write into TX stream" << std::endl;
       return 0;
@@ -315,7 +318,7 @@ int pciesdr_sink_c::work( int noutput_items,
       std::cerr << "tx_underflow_count:" << stats.tx_underflow_count << " rx_overflow_count:" << stats.rx_overflow_count << std::endl;
     }
     // update hw_time
-    rc = msdr_write(_dev, timestamp_tx, (const void**)NULL, 0, 0, &hw_time_tmp);
+    rc = msdr_write(_dev, timestamp_tx, (const void**)NULL, 0, 0, &md);
     if (rc < 0) {
       std::cerr << "Failed write into TX stream" << std::endl;
       return 0;
@@ -341,7 +344,7 @@ int pciesdr_sink_c::work( int noutput_items,
     }
   }
 
-  rc = msdr_write(_dev, timestamp_tx, (const void**)tx_samples_by_chan, noutput_items_tmp, chan, &hw_time_tmp);
+  rc = msdr_write(_dev, timestamp_tx, (const void**)tx_samples_by_chan, noutput_items_tmp, chan, &md);
   if (rc < 0) {
     std::cerr << "Failed write into TX stream" << std::endl;
     return 0;

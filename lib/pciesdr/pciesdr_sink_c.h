@@ -45,7 +45,7 @@ class pciesdr_sink_c;
  *
  * As a convention, the _sptr suffix indicates a boost::shared_ptr
  */
-typedef boost::shared_ptr<pciesdr_sink_c> pciesdr_sink_c_sptr;
+typedef std::shared_ptr<pciesdr_sink_c> pciesdr_sink_c_sptr;
 
 /*!
  * \brief Return a shared_ptr to a new instance of pciesdr_sink_c.

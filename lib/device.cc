@@ -89,6 +89,10 @@
 #include <freesrp_source_c.h>
 #endif
 
+#ifdef ENABLE_PCIESDR
+#include <pciesdr_source_c.h>
+#endif
+
 #include "arg_helpers.h"
 
 using namespace osmosdr;
@@ -191,6 +195,10 @@ devices_t device::find(const device_t &hint)
 #endif
 #ifdef ENABLE_SOAPY
   for (std::string dev : soapy_source_c::get_devices())
+    devices.push_back( device_t(dev) );
+#endif
+#ifdef ENABLE_PCIESDR
+  for (std::string dev : pciesdr_source_c::get_devices())
     devices.push_back( device_t(dev) );
 #endif
 

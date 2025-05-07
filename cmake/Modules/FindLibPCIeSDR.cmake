@@ -2,14 +2,14 @@ if(NOT LIBPCIESDR_FOUND)
   pkg_check_modules (LIBPCIESDR_PKG libsdr)
   find_path(LIBPCIESDR_INCLUDE_DIRS NAMES libsdr.h
     PATHS
-    ${LIBXTRX_PKG_INCLUDE_DIRS}
+    ${PCIESDR_DIR}/api
     /usr/include
     /usr/local/include
   )
 
   find_library(LIBPCIESDR_LIBRARIES NAMES libsdr.so
     PATHS
-    ${LIBXTRX_PKG_LIBRARY_DIRS}
+    ${PCIESDR_DIR}
     /usr/lib
     /usr/local/lib
   )
@@ -18,7 +18,7 @@ if(LIBPCIESDR_INCLUDE_DIRS AND LIBPCIESDR_LIBRARIES)
   set(LIBPCIESDR_FOUND TRUE CACHE INTERNAL "libsdr found")
   message(STATUS "Found libsdr: ${LIBPCIESDR_INCLUDE_DIRS}, ${LIBPCIESDR_LIBRARIES}")
 else(LIBPCIESDR_INCLUDE_DIRS AND LIBPCIESDR_LIBRARIES)
-  set(LIBPCIESDR_FOUND FALSE CACHE INTERNAL "libsdr found")
+  set(LIBPCIESDR_FOUND FALSE CACHE INTERNAL "libsdr not found")
   message(STATUS "libsdr not found.")
 endif(LIBPCIESDR_INCLUDE_DIRS AND LIBPCIESDR_LIBRARIES)
 

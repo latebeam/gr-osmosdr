@@ -163,7 +163,8 @@ sink_impl::sink_impl( const std::string &args )
       dev_list.push_back( dev );
 #endif
 #ifdef ENABLE_PCIESDR
-    BOOST_FOREACH( std::string dev, pciesdr_sink_c::get_devices() )
+    for ( std::string dev : pciesdr_sink_c::get_devices())
+      dev_list.push_back( dev );
 #endif
 #ifdef ENABLE_FILE
     for (std::string dev : file_sink_c::get_devices())

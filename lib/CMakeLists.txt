@@ -276,7 +276,13 @@ endif(ENABLE_XTRX)
 ########################################################################
 GR_REGISTER_COMPONENT("PCIeSDR" ENABLE_PCIESDR LIBPCIESDR_FOUND)
 if(ENABLE_PCIESDR)
-    GR_INCLUDE_SUBDIRECTORY(pciesdr)
+    add_subdirectory(pciesdr)
+    if(PCIESDR_DIR)
+    	message("--   PCIESDR_DIR found, adding libs from: " ${PCIESDR_DIR})
+    	SET (gr_osmosdr_libs "${gr_osmosdr_libs};${PCIESDR_DIR}/libsdr.so;${PCIESDR_DIR}/libc_wrapper_sdr.so")
+    else()
+    	message(WARNING "PCIESDR_DIR missing!")
+    endif(PCIESDR_DIR)
 endif(ENABLE_PCIESDR)
 
 ########################################################################
@@ -292,6 +298,8 @@ configure_file(
 ########################################################################
 # Finalize target
 ########################################################################
+SET (gr_osmosdr_libs "${gr_osmosdr_libs}" CACHE INTERNAL "lib list")
+
 set_target_properties(gnuradio-osmosdr PROPERTIES SOURCES "${gr_osmosdr_srcs}")
 target_link_libraries(gnuradio-osmosdr ${gr_osmosdr_libs})
 

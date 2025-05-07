@@ -34,7 +34,7 @@
 
 #include <boost/assign.hpp>
 #include <boost/format.hpp>
-#include <boost/detail/endian.hpp>
+#include <boost/predef/other/endian.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread/thread.hpp>
 
@@ -43,6 +43,8 @@
 #include "pciesdr_source_c.h"
 
 #include "arg_helpers.h"
+
+#define SDR_MAX_SAMPLES  4096
 
 using namespace boost::assign;
 
@@ -77,9 +79,9 @@ static inline int pciesdr_stop_rx(MultiSDRState *_dev)
 bool pciesdr_source_c::_running = 0;
 boost::mutex pciesdr_source_c::_running_mutex;
 
-pciesdr_source_c_sptr make_pciesdr_source_c (const std::string & args)
+pciesdr_source_c_sptr make_pciesdr_source_c(const std::string &args)
 {
-  return gnuradio::get_initial_sptr(new pciesdr_source_c (args));
+  return gnuradio::get_initial_sptr(new pciesdr_source_c(args));
 }
 
 /*
@@ -112,16 +114,40 @@ pciesdr_source_c::pciesdr_source_c (const std::string &args)
     _vga_gain(0),
     _bandwidth(0)
 {
-
-  int chan = 0;
-  int rf_port = 0;
   std::string pciesdr_args;
   dict_t dict = params_to_dict(args);
-
-  if (dict.count("args") && dict["args"].length() > 0) {
-    pciesdr_args = dict["args"];
-    // remove last bracket
-    pciesdr_args = pciesdr_args.substr(0, pciesdr_args.find_last_of(']'));
+  
+  if (dict.count("dev0"))
+  {
+    pciesdr_args = "dev0=" + dict["dev0"];
+  }
+  
+  if (dict.count("sync"))
+  {
+    std::string sync_source = dict["sync"];
+    std::cout << "sync parameter: " << sync_source << std::endl;
+    if (sync_source == "internal")
+      StartParams.sync_source = SDR_SYNC_INTERNAL;
+    else if (sync_source == "external")
+      StartParams.sync_source = SDR_SYNC_EXTERNAL;
+    else if (sync_source == "gps")
+      StartParams.sync_source = SDR_SYNC_GPS;
+    else if (sync_source == "none")
+      StartParams.sync_source = SDR_SYNC_NONE;
+    else
+      std::cerr << "invalid parameter for sync" << std::endl;
+  }
+  
+  if (dict.count("clock"))
+  {
+    std::string clock_source = dict["clock"];
+    std::cout << "clock parameter: " << clock_source << std::endl;
+    if (clock_source == "internal")
+      StartParams.clock_source = SDR_CLOCK_INTERNAL;
+    else if (clock_source == "external")
+      StartParams.clock_source = SDR_CLOCK_EXTERNAL;
+    else
+      std::cerr << "invalid parameter for clock" << std::endl;
   }
 
   timestamp_rx = 0;
@@ -132,43 +158,29 @@ pciesdr_source_c::pciesdr_source_c (const std::string &args)
     throw std::runtime_error("PCIESDR creating failed, device ");
   }
   
-  // prefil startup parameters
-  msdr_set_default_start_params(_dev, &StartParams);
+  msdr_set_default_start_params(_dev, &StartParams, sizeof(StartParams), 1, 1, 1);
 
-  StartParams.interface_type = SDR_INTERFACE_RF; /* RF interface */
-  StartParams.sync_source = SDR_SYNC_NONE; /* no time synchronisation */
-  StartParams.clock_source = SDR_CLOCK_INTERNAL; /* internal clock, using PPS to correct it */
+  double sampleRate;
+  StartParams.sample_rate_num[0] = 270833 * 4;
+  StartParams.sample_rate_den[0] = 1;
+  sampleRate = (double)StartParams.sample_rate_num[0] / (double)StartParams.sample_rate_den[0];
+  StartParams.rx_bandwidth[0] = sampleRate * 0.75;
 
-  StartParams.rx_sample_fmt = SDR_SAMPLE_FMT_CF32; /* complex float32 */
-  StartParams.rx_sample_hw_fmt = SDR_SAMPLE_HW_FMT_AUTO; /* choose best format fitting the bandwidth */
-
-  StartParams.sample_rate_num[rf_port] = 1.5e6;
-  StartParams.sample_rate_den[rf_port] = 1;
-  StartParams.tx_freq[chan] = 1500e6;
-  StartParams.rx_freq[chan] = 1500e6;
-
+  StartParams.rx_sample_fmt = SDR_SAMPLE_FMT_CF32;
+  StartParams.rx_sample_hw_fmt = SDR_SAMPLE_HW_FMT_AUTO;
   StartParams.rx_channel_count = 1;
-  StartParams.tx_channel_count = 1;
-  StartParams.rx_gain[chan] = 40;
-  StartParams.rx_bandwidth[chan] = 1e4;
+  StartParams.rx_freq[0] = 9468e5;
+  StartParams.rx_gain[0] = 60;
+  StartParams.rx_antenna[0] = SDR_RX_ANTENNA_RX;
   StartParams.rf_port_count = 1;
-  StartParams.tx_port_channel_count[rf_port] = 1;
-  StartParams.rx_port_channel_count[rf_port] = 1;
+  StartParams.rx_port_channel_count[0] = 1;
   /* if != 0, set a custom DMA buffer configuration. Otherwise the default is 150 buffers per 10 ms */
-  StartParams.dma_buffer_count = 0;
-  StartParams.dma_buffer_len = 1000; /* in samples */
-
-  set_center_freq((get_freq_range().start() + get_freq_range().stop()) / 2.0 );
-  set_sample_rate(get_sample_rates().start());
-  set_bandwidth(0);
-
-  set_gain(0); /* disable AMP gain stage by default to protect full sprectrum pre-amp from physical damage */
-
-  //set_if_gain( 16 ); /* preset to a reasonable default (non-GRC use case) */
+  StartParams.dma_buffer_count = 10;
+  /* in samples */
+  StartParams.dma_buffer_len = 1000;
 
   {
     boost::mutex::scoped_lock lock(_running_mutex);
-
     _running = 0;
   }
 
@@ -223,13 +235,19 @@ bool pciesdr_source_c::start()
   int ret;
   SDRStats stats;
 
-  if (! _dev)
+  if (!_dev)
     return false;
-
-  ret = msdr_start(_dev, &StartParams);
-  if (ret) {
-    std::cerr << "Failed to start RX streaming" << std::endl;
-    return false;
+    
+  ret = msdr_set_start_params(_dev, &StartParams, sizeof(StartParams));
+  if (ret < 0) {
+      fprintf(stderr, "msdr_set_start_params: failed\n");
+      exit(1);
+  }
+  ret = msdr_start(_dev);
+  msdr_release_start_params(&StartParams, sizeof(StartParams));
+  if (ret < 0) {
+      fprintf(stderr, "msdr_start: failed\n");
+      exit(1);
   }
 
   ret = msdr_get_stats(_dev, &stats);
@@ -275,11 +293,13 @@ int pciesdr_source_c::work( int noutput_items,
 {
   int chan = 0;
   int chan_count = 1;
-  int rc;
+  int rc = 0;
   int i;
   SDRStats stats;
   int64_t timestamp_tmp = 0;
-  sample_t *rx_samples_by_chan[SDR_MAX_CHANNELS];
+  sample_t *rx_samples_by_chan[SDR_MAX_SAMPLES];
+  MultiSDRReadMetadata md;
+  md.timeout_ms = 1000;
 
   for (i = 0; i < chan_count; i++) {
   /*
@@ -287,21 +307,37 @@ int pciesdr_source_c::work( int noutput_items,
   */
     rx_samples_by_chan[i] = (sample_t*)output_items[i];
   }
-  rc = msdr_read(_dev, &timestamp_tmp, (void**)rx_samples_by_chan, noutput_items, chan, 100); 
-  if (rc < 0) {
-    std::cerr << "Failed read from RX stream rc:" << rc << " noutput_items:" << noutput_items << std::endl;
-    std::cerr << "timestamp_rx:" << timestamp_rx << " timestamp_tmp:" << timestamp_tmp << std::endl;
-    if (msdr_get_stats(_dev, &stats)) {
-      std::cerr << "Failed get_stats" << std::endl;
-    } else {
-      std::cerr << "tx_underflow_count:" << stats.tx_underflow_count << " rx_overflow_count:" << stats.rx_overflow_count << std::endl;
+  
+  while (rc < 1)
+  {
+  
+    {
+      boost::mutex::scoped_lock lock(_running_mutex);
+      if (!_running)
+        break;
     }
-    return 0;
+    
+    rc = msdr_read(_dev, &timestamp_tmp, (void**)rx_samples_by_chan, noutput_items, chan, &md); 
+    if (rc < 0) {
+      std::cerr << "Failed read from RX stream rc:" << rc << " noutput_items:" << noutput_items << std::endl;
+      std::cerr << "timestamp_rx:" << timestamp_rx << " timestamp_tmp:" << timestamp_tmp << std::endl;
+      if (msdr_get_stats(_dev, &stats)) {
+        std::cerr << "Failed get_stats" << std::endl;
+      } else {
+        std::cerr << "tx_underflow_count:" << stats.tx_underflow_count << " rx_overflow_count:" << stats.rx_overflow_count << std::endl;
+      }
+      return -1;
+    }
+    timestamp_rx = timestamp_tmp;
+    
+    {
+      boost::mutex::scoped_lock lock(_running_mutex);
+      if (!_running)
+        break;
+    }
   }
-  timestamp_rx = timestamp_tmp;
-
+  
   // Tell runtime system how many output items we produced.
-
   return rc;
 }
 
