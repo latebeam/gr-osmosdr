@@ -107,6 +107,7 @@ sink_impl::sink_impl( const std::string &args )
 #endif
 #ifdef ENABLE_XTRX
   dev_types.push_back("xtrx");
+#endif
 #ifdef ENABLE_PCIESDR
   dev_types.push_back("pciesdr");
 #endif
